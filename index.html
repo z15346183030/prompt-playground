@@ -124,6 +124,13 @@
     </div>
 
     <script>
+        // HTML 转义函数 — 防止 XSS
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
         // 快捷键
         document.getElementById('userPrompt').addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'Enter') sendRequest();
@@ -211,7 +218,11 @@
                 renderHistory();
 
             } catch (err) {
-                responseEl.innerHTML = `<span class="error">❌ ${err.message}</span>`;
+                responseEl.innerHTML = '';
+                const span = document.createElement('span');
+                span.className = 'error';
+                span.textContent = '❌ ' + err.message;
+                responseEl.appendChild(span);
                 statusEl.textContent = '请求失败';
             } finally {
                 btn.disabled = false;
@@ -249,8 +260,8 @@
             const el = document.getElementById('historyList');
             el.innerHTML = history.map((h, i) => `
                 <div class="history-item" onclick="loadHistory(${i})">
-                    <div class="time">${h.time} | ${h.model} | ${h.elapsed}s</div>
-                    <div class="preview">${h.prompt}</div>
+                    <div class="time">${escapeHtml(h.time)} | ${escapeHtml(h.model)} | ${escapeHtml(String(h.elapsed))}s</div>
+                    <div class="preview">${escapeHtml(h.prompt)}</div>
                 </div>
             `).join('');
         }
