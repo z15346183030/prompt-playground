@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt Playground — AI Prompt 测试工作台</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3a;
+            --text: #e4e4e7; --muted: #71717a; --accent: #6366f1;
+            --green: #22c55e; --red: #ef4444; --yellow: #eab308;
+        }
+        body { font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+        .header h1 { font-size: 18px; font-weight: 600; }
+        .header .badge { background: var(--accent); color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+        .container { display: grid; grid-template-columns: 1fr 1fr; height: calc(100vh - 65px); }
+        .panel { border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+        .panel:last-child { border-right: none; }
+        .panel-header { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+        .panel-body { flex: 1; overflow-y: auto; padding: 16px; }
+        textarea { width: 100%; height: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 12px; font-family: inherit; font-size: 13px; resize: none; border-radius: 6px; outline: none; }
+        textarea:focus { border-color: var(--accent); }
+        .config { display: flex; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+        .config label { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 120px; }
+        input, select { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 4px; font-family: inherit; font-size: 12px; outline: none; }
+        input:focus, select:focus { border-color: var(--accent); }
+        .btn { background: var(--accent); color: white; border: none; padding: 8px 20px; border-radius: 6px; font-size: 13px; cursor: pointer; font-family: inherit; font-weight: 600; }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+        .btn-outline:hover { border-color: var(--accent); color: var(--text); }
+        .btn-danger { background: var(--red); }
+        .response { white-space: pre-wrap; word-break: break-word; line-height: 1.6; font-size: 13px; }
+        .response .thinking { color: var(--muted); font-style: italic; }
+        .status { padding: 8px 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; }
+        .token-count { color: var(--green); }
+        .error { color: var(--red); }
+        .history { max-height: 200px; overflow-y: auto; }
+        .history-item { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; cursor: pointer; font-size: 12px; }
+        .history-item:hover { border-color: var(--accent); }
+        .history-item .time { color: var(--muted); font-size: 10px; }
+        .history-item .preview { color: var(--text); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tabs { display: flex; gap: 0; }
+        .tab { padding: 8px 16px; font-size: 12px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--muted); }
+        .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+        .hidden { display: none; }
+        @media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧪 Prompt Playground</h1>
+        <span class="badge">AI Prompt 测试工作台</span>
+    </div>
+
+    <div class="container">
+        <!-- 左侧：输入 -->
+        <div class="panel">
+            <div class="panel-header">
+                <span>📝 Prompt 配置</span>
+                <button class="btn btn-outline" onclick="clearAll()">清空</button>
+            </div>
+            <div class="config">
+                <label>
+                    API Base URL
+                    <input type="text" id="baseUrl" value="https://api.openai.com/v1" placeholder="API Base URL">
+                </label>
+                <label>
+                    API Key
+                    <input type="password" id="apiKey" placeholder="sk-xxx">
+                </label>
+                <label>
+                    模型
+                    <input type="text" id="model" value="gpt-4o" placeholder="模型名称">
+                </label>
+                <label>
+                    Temperature
+                    <input type="number" id="temperature" value="0.7" min="0" max="2" step="0.1">
+                </label>
+                <label>
+                    Max Tokens
+                    <input type="number" id="maxTokens" value="2048" min="1" max="128000">
+                </label>
+            </div>
+            <div class="panel-header">
+                <span>System Prompt</span>
+                <span style="font-size:10px; color:var(--muted)">可选</span>
+            </div>
+            <div style="padding: 0 16px 8px;">
+                <textarea id="systemPrompt" rows="3" placeholder="你是一个专业的 Python 开发者..."></textarea>
+            </div>
+            <div class="panel-header">
+                <span>User Prompt</span>
+                <span style="font-size:10px; color:var(--muted)">Ctrl+Enter 发送</span>
+            </div>
+            <div style="flex:1; padding: 0 16px 8px;">
+                <textarea id="userPrompt" rows="8" placeholder="输入你的 prompt..."></textarea>
+            </div>
+            <div style="padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px;">
+                <button class="btn" id="sendBtn" onclick="sendRequest()">🚀 发送</button>
+                <button class="btn btn-outline" onclick="copyResponse()">📋 复制结果</button>
+            </div>
+        </div>
+
+        <!-- 右侧：输出 -->
+        <div class="panel">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('response')">📤 响应</div>
+                <div class="tab" onclick="switchTab('history')">📜 历史</div>
+            </div>
+            <div id="responseTab" class="panel-body">
+                <div class="response" id="response">等待发送...</div>
+            </div>
+            <div id="historyTab" class="panel-body hidden">
+                <div class="history" id="historyList"></div>
+            </div>
+            <div class="status">
+                <span id="statusText">就绪</span>
+                <span id="tokenInfo" class="token-count"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 快捷键
+        document.getElementById('userPrompt').addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') sendRequest();
+        });
+
+        // 从 localStorage 恢复配置
+        ['baseUrl', 'apiKey', 'model', 'temperature', 'maxTokens', 'systemPrompt'].forEach(id => {
+            const saved = localStorage.getItem('pp_' + id);
+            if (saved) document.getElementById(id).value = saved;
+        });
+
+        let history = JSON.parse(localStorage.getItem('pp_history') || '[]');
+        renderHistory();
+
+        async function sendRequest() {
+            const baseUrl = document.getElementById('baseUrl').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const model = document.getElementById('model').value.trim();
+            const temperature = parseFloat(document.getElementById('temperature').value);
+            const maxTokens = parseInt(document.getElementById('maxTokens').value);
+            const systemPrompt = document.getElementById('systemPrompt').value.trim();
+            const userPrompt = document.getElementById('userPrompt').value.trim();
+
+            if (!apiKey) { alert('请输入 API Key'); return; }
+            if (!userPrompt) { alert('请输入 Prompt'); return; }
+
+            // 保存配置
+            ['baseUrl', 'apiKey', 'model', 'temperature', 'maxTokens', 'systemPrompt'].forEach(id => {
+                localStorage.setItem('pp_' + id, document.getElementById(id).value);
+            });
+
+            const messages = [];
+            if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+            messages.push({ role: 'user', content: userPrompt });
+
+            const btn = document.getElementById('sendBtn');
+            const responseEl = document.getElementById('response');
+            const statusEl = document.getElementById('statusText');
+            const tokenEl = document.getElementById('tokenInfo');
+
+            btn.disabled = true;
+            btn.textContent = '⏳ 请求中...';
+            responseEl.textContent = '';
+            statusEl.textContent = '请求中...';
+            tokenEl.textContent = '';
+
+            const startTime = Date.now();
+
+            try {
+                const resp = await fetch(`${baseUrl}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`,
+                    },
+                    body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens }),
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.text();
+                    throw new Error(`HTTP ${resp.status}: ${err}`);
+                }
+
+                const data = await resp.json();
+                const content = data.choices?.[0]?.message?.content || '(空响应)';
+                const usage = data.usage;
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+                responseEl.textContent = content;
+                statusEl.textContent = `✅ 完成 (${elapsed}s)`;
+
+                if (usage) {
+                    tokenEl.textContent = `Tokens: ${usage.prompt_tokens} → ${usage.completion_tokens} (共 ${usage.total_tokens})`;
+                }
+
+                // 保存历史
+                history.unshift({
+                    time: new Date().toLocaleString(),
+                    prompt: userPrompt.substring(0, 100),
+                    response: content.substring(0, 200),
+                    model, elapsed,
+                });
+                if (history.length > 50) history.pop();
+                localStorage.setItem('pp_history', JSON.stringify(history));
+                renderHistory();
+
+            } catch (err) {
+                responseEl.innerHTML = `<span class="error">❌ ${err.message}</span>`;
+                statusEl.textContent = '请求失败';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🚀 发送';
+            }
+        }
+
+        function clearAll() {
+            document.getElementById('systemPrompt').value = '';
+            document.getElementById('userPrompt').value = '';
+            document.getElementById('response').textContent = '等待发送...';
+            document.getElementById('statusText').textContent = '就绪';
+            document.getElementById('tokenInfo').textContent = '';
+        }
+
+        function copyResponse() {
+            const text = document.getElementById('response').textContent;
+            navigator.clipboard.writeText(text);
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById('responseTab').classList.add('hidden');
+            document.getElementById('historyTab').classList.add('hidden');
+            if (tab === 'response') {
+                document.getElementById('responseTab').classList.remove('hidden');
+                document.querySelectorAll('.tab')[0].classList.add('active');
+            } else {
+                document.getElementById('historyTab').classList.remove('hidden');
+                document.querySelectorAll('.tab')[1].classList.add('active');
+            }
+        }
+
+        function renderHistory() {
+            const el = document.getElementById('historyList');
+            el.innerHTML = history.map((h, i) => `
+                <div class="history-item" onclick="loadHistory(${i})">
+                    <div class="time">${h.time} | ${h.model} | ${h.elapsed}s</div>
+                    <div class="preview">${h.prompt}</div>
+                </div>
+            `).join('');
+        }
+
+        function loadHistory(i) {
+            const h = history[i];
+            document.getElementById('userPrompt').value = h.prompt;
+            document.getElementById('response').textContent = h.response;
+            switchTab('response');
+        }
+    </script>
+</body>
+</html>
